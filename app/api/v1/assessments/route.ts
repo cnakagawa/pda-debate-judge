@@ -43,6 +43,8 @@ export const GET = handler(async () => {
       status: a.status,
       testDate: (a.completedAt ?? a.createdAt).toISOString().slice(0, 10),
       totalScore: a.evaluations[0]?.totalScore ?? null,
+      matterScore: a.evaluations[0]?.matterScore ?? null,
+      mannerScore: a.evaluations[0]?.mannerScore ?? null,
       pdLevel: a.evaluations[0]?.pdLevel ?? null,
     })),
   );

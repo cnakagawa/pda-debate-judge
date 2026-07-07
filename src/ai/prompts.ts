@@ -8,7 +8,7 @@ import { isCriterionExcluded } from "../domain/rubricEngine";
  */
 export const JUDGE_PROMPT_VERSION = "judge-v1";
 export const PM_SPEECH_PROMPT_VERSION = "pm-speech-v1";
-export const COMMENTS_PROMPT_VERSION = "comments-v1";
+export const COMMENTS_PROMPT_VERSION = "comments-v2";
 
 export function applicableLlmCriteria(
   rubric: RubricDefinition,
@@ -241,6 +241,11 @@ export function buildCommentsPrompt(input: {
   matterScore: number;
   mannerScore: number;
   pdLevel: string | null;
+  nextLevel?: {
+    targetLevel: string | null;
+    requirements: { matter: number; manner: number } | null;
+    keyActions: string[];
+  };
   itemSummaries: Array<{
     labelJa: string;
     category: string;
@@ -257,6 +262,15 @@ export function buildCommentsPrompt(input: {
     )
     .join("\n");
 
+  const nextLevel = input.nextLevel?.targetLevel
+    ? `
+# 次のレベルへのプラン（システムがルーブリックとPDレベル換算表から決定的に導出済み）
+- 目標: ${input.nextLevel.targetLevel}（内容${input.nextLevel.requirements?.matter}点以上・表現${input.nextLevel.requirements?.manner}点以上が必要）
+- 優先練習項目（ルーブリック原文）:
+${input.nextLevel.keyActions.map((a) => `  ・${a}`).join("\n")}
+improvementPoints と overallComments には、この目標レベルと優先練習項目を必ず反映すること。`
+    : "";
+
   return `あなたはPDAのアセスメントレポートのコメントを書く教育者です。高校生の受験者に向けて書きます。
 
 # 評価結果（PDAルーブリックによる判定済み。これ以外の根拠でコメントしない）
@@ -264,6 +278,7 @@ export function buildCommentsPrompt(input: {
 - 役割: ${input.roleLabel}
 - 内容 (Matter): ${input.matterScore}/10、表現 (Manner): ${input.mannerScore}/10、PD Level: ${input.pdLevel ?? "判定外"}
 ${items}
+${nextLevel}
 
 # スピーチ抜粋
 ${input.transcriptExcerpt}

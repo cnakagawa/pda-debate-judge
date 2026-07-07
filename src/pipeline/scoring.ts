@@ -3,6 +3,9 @@ import { makeJudge, makeStorage, makeStt, makeVision } from "../adapters/provide
 import { extractAudio, extractFrames, loudnessStats, probeDuration } from "../adapters/ffmpeg";
 import { computeDeliveryMetrics, computeEyeContactRatio } from "./metrics";
 import { judgeMetricCriteria } from "../domain/metricCriteria";
+import { computeScore } from "../domain/rubricEngine";
+import { buildNextLevelPlan } from "../domain/nextLevelPlan";
+import { judgmentsFromItems } from "../services/evaluationService";
 import type {
   DeliveryMetrics,
   RoleSpec,
@@ -249,6 +252,7 @@ export async function runScoringPipeline(
         pdLevelGrid: pdGrid,
         source: "ai",
         itemRationales: judgeOut.itemRationales,
+        structure: judgeOut.structure,
         llmModel: judgeOut.model,
         promptVersion: judgeOut.promptVersion,
       });
@@ -277,6 +281,17 @@ export async function runScoringPipeline(
           unmetCriteria: rows.filter((r) => !r.met && !r.excluded).map((r) => r.text),
         };
       });
+      // 次レベルプラン（決定的）をコメント生成の入力に含める（学習支援）
+      const planScore = computeScore(
+        {
+          rubric,
+          context,
+          judgments: judgmentsFromItems(evalRow.items),
+          gates: evalRow.gates as unknown as import("../domain/types").GateJudgment[],
+        },
+        (await getPdLevelGrid()) as PdLevelGrid,
+      );
+      const plan = buildNextLevelPlan(planScore, rubric, context, planScore.pdLevel as never);
       const comments = await judge.generateComments({
         language: assessment.language,
         motion: assessment.motion.textEn,
@@ -284,6 +299,11 @@ export async function runScoringPipeline(
         matterScore: evalRow.matterScore,
         mannerScore: evalRow.mannerScore,
         pdLevel: evalRow.pdLevel,
+        nextLevel: {
+          targetLevel: plan.targetLevel,
+          requirements: plan.requirements,
+          keyActions: plan.recommendations.slice(0, 5).map((r) => `${r.itemLabelJa}: ${r.text}`),
+        },
         itemSummaries,
         transcriptExcerpt: transcript.text.slice(0, 1500),
       });

@@ -1,6 +1,11 @@
 import type { PrismaClient } from "@prisma/client";
 import { makePdf, makeStorage } from "../adapters/providers";
-import { getSetting } from "../lib/settings";
+import { getPdLevelGrid, getSetting } from "../lib/settings";
+import { computeScore } from "../domain/rubricEngine";
+import { buildNextLevelPlan, type NextLevelPlan } from "../domain/nextLevelPlan";
+import { judgmentsFromItems } from "./evaluationService";
+import type { GateJudgment, RubricDefinition, ScoringContext } from "../domain/types";
+import type { PdLevel, PdLevelGrid } from "../domain/pdLevel";
 
 export interface ReportData {
   reportTitle: "PD Assessment Report";
@@ -23,6 +28,37 @@ export interface ReportData {
   notes: string[];
   evaluationSource: string;
   rubricVersion: string;
+  /** 学習支援セクション（09-learning-support.md） */
+  learning: {
+    /** ② 評価の根拠: 項目ごとの詳細項目チェックリスト */
+    itemDetails: Array<{
+      key: string;
+      labelJa: string;
+      category: string;
+      grade: string;
+      rationale: string;
+      criteria: Array<{
+        band: string;
+        text: string;
+        met: boolean;
+        excluded: boolean;
+        rationale?: string;
+        evidence?: Array<{ quote: string; startSec?: number }>;
+      }>;
+    }>;
+    /** ③ スピーチシート・チェック */
+    speechSheet: Array<{ key: string; labelJa: string; present: boolean; quote?: string }>;
+    /** ④ 次のレベルへのプラン（決定的アルゴリズム） */
+    nextLevel: NextLevelPlan;
+    /** 前回（同Role）からの変化 */
+    previous: {
+      testDate: string;
+      matterScore: number;
+      mannerScore: number;
+      totalScore: number;
+      pdLevel: string | null;
+    } | null;
+  };
 }
 
 const ITEM_LABELS: Record<string, { ja: string; en: string }> = {
@@ -91,6 +127,96 @@ export async function buildReportData(
     })
     .filter((x): x is NonNullable<typeof x> => x !== null);
 
+  // ── 学習支援セクションの構築 ──
+  const rubric = evaluation.rubricVersion.definition as unknown as RubricDefinition;
+  const roleSpec = await prisma.roleSpecRecord.findUniqueOrThrow({
+    where: { role: assessment.role },
+  });
+  const context: ScoringContext = { speechType: roleSpec.speechType, poiAvailable: false };
+
+  const rubricLabel = (key: string) =>
+    rubric.items.find((i) => i.key === key)?.labelJa ?? ITEM_LABELS[key]?.ja ?? key;
+
+  const itemDetails = order
+    .map((key) => {
+      const item = evaluation.items.find((i) => i.itemKey === key);
+      if (!item) return null;
+      const rows = item.criteriaResults as unknown as Array<{
+        band: string;
+        text: string;
+        met: boolean;
+        excluded: boolean;
+        rationale?: string;
+        evidence?: Array<{ quote: string; startSec?: number }>;
+      }>;
+      return {
+        key,
+        labelJa: rubricLabel(key),
+        category: item.category,
+        grade: item.grade,
+        rationale: item.rationale,
+        criteria: rows.map((r) => ({
+          band: r.band,
+          text: r.text,
+          met: r.met,
+          excluded: r.excluded,
+          rationale: r.rationale,
+          evidence: r.evidence,
+        })),
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  const requiredElements = roleSpec.requiredElements as unknown as Array<{
+    key: string;
+    labelJa: string;
+  }>;
+  const structureRows = (evaluation.structure ?? []) as unknown as Array<{
+    key: string;
+    present: boolean;
+    quote?: string;
+  }>;
+  const speechSheet = requiredElements.map((el) => {
+    const found = structureRows.find((s) => s.key === el.key);
+    return {
+      key: el.key,
+      labelJa: el.labelJa,
+      present: found?.present ?? false,
+      quote: found?.quote,
+    };
+  });
+
+  // 保存済み判定から点数構造を再構成し、次レベルプランを決定的に導出
+  const planScore = computeScore(
+    {
+      rubric,
+      context,
+      judgments: judgmentsFromItems(evaluation.items),
+      gates: evaluation.gates as unknown as GateJudgment[],
+    },
+    (await getPdLevelGrid()) as PdLevelGrid,
+  );
+  const nextLevel = buildNextLevelPlan(
+    planScore,
+    rubric,
+    context,
+    (evaluation.pdLevel as PdLevel | null) ?? null,
+  );
+
+  // 前回（同Role・採点済み）との比較
+  const prev = await prisma.assessment.findFirst({
+    where: {
+      userId: assessment.userId,
+      role: assessment.role,
+      status: "scored",
+      id: { not: assessment.id },
+      completedAt: { lt: assessment.completedAt ?? new Date() },
+    },
+    orderBy: { completedAt: "desc" },
+    include: { evaluations: { where: { isCurrent: true } } },
+  });
+  const prevEval = prev?.evaluations[0];
+
   return {
     reportTitle: "PD Assessment Report",
     name: assessment.user.name,
@@ -117,6 +243,20 @@ export async function buildReportData(
     ],
     evaluationSource: evaluation.source,
     rubricVersion: evaluation.rubricVersion.version,
+    learning: {
+      itemDetails,
+      speechSheet,
+      nextLevel,
+      previous: prevEval
+        ? {
+            testDate: (prev!.completedAt ?? prev!.createdAt).toISOString().slice(0, 10),
+            matterScore: prevEval.matterScore,
+            mannerScore: prevEval.mannerScore,
+            totalScore: prevEval.totalScore,
+            pdLevel: prevEval.pdLevel,
+          }
+        : null,
+    },
   };
 }
 
@@ -242,6 +382,15 @@ export function renderReportHtml(d: ReportData): string {
   <div class="comment"><h3>Good Points / 良かった点</h3><p>${esc(d.goodPoints)}</p></div>
   <div class="comment"><h3>Improvement Points / 改善点</h3><p>${esc(d.improvementPoints)}</p></div>
   <div class="comment"><h3>Overall Comments / 総評</h3><p>${esc(d.overallComments)}</p></div>
+${
+  d.learning.nextLevel.targetLevel
+    ? `  <div class="comment"><h3>Next Step / 次のレベルへ — 目標 ${esc(d.learning.nextLevel.targetLevel)}（内容${d.learning.nextLevel.requirements!.matter}点以上・表現${d.learning.nextLevel.requirements!.manner}点以上）</h3>
+    <p>${d.learning.nextLevel.recommendations
+      .slice(0, 3)
+      .map((r) => `【${esc(r.itemLabelJa)}】${esc(r.text)}`)
+      .join("<br>")}</p></div>`
+    : `  <div class="comment"><h3>Next Step</h3><p>最上位レベル（PD1）に到達しています。この水準を維持できるよう練習を続けましょう。</p></div>`
+}
 
   <div class="notes">
     ${d.notes.map((n) => `※ ${esc(n)}`).join("<br>")}

@@ -94,6 +94,12 @@ export interface CommentsInput {
   matterScore: number;
   mannerScore: number;
   pdLevel: string | null;
+  /** NextLevelPlan由来（学習支援）: 目標レベルと優先練習項目（ルーブリック原文） */
+  nextLevel?: {
+    targetLevel: string | null;
+    requirements: { matter: number; manner: number } | null;
+    keyActions: string[];
+  };
   itemSummaries: Array<{
     itemKey: string;
     labelJa: string;

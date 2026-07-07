@@ -256,6 +256,8 @@ model Evaluation {
   improvementPoints String           @default("") @map("improvement_points")
   overallComments   String           @default("") @map("overall_comments")
   gates             Json             @default("[]")
+  /// スピーチシート構造抽出結果（学習支援表示用・修正時は前世代から引継ぎ）
+  structure         Json             @default("[]")
   llmModel          String?          @map("llm_model")
   promptVersion     String?          @map("prompt_version")
   createdById       String?          @map("created_by") @db.Uuid

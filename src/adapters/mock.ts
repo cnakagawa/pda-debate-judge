@@ -215,10 +215,12 @@ export class MockJudgeAdapter implements JudgePort {
         `内容面では、論題「${input.motion}」に対して自分の主張を理由とともに述べられた点が良かったです。表現面では、規定時間を意識してスピーチを最後まで続けられたこと、聞き手に伝えようとする姿勢が見られたことが評価できます。`,
       ),
       improvementPoints: pad(
-        `内容面では、主張の理由をもう一段深く説明し、具体例を聞き手が想像できるくらい詳しく描写するとさらに良くなります。表現面では、アイコンタクトの時間を増やし、声の大きさやスピードに緩急をつけると、聞き手を惹きつけるスピーチになります。`,
+        input.nextLevel?.targetLevel
+          ? `${input.nextLevel.targetLevel}に上がるには、内容${input.nextLevel.requirements?.matter}点・表現${input.nextLevel.requirements?.manner}点が必要です。特に「${input.nextLevel.keyActions[0] ?? "理由の説明"}」を意識して練習しましょう。表現面ではアイコンタクトと声の緩急も効果的です。`
+          : `内容面では、主張の理由をもう一段深く説明し、具体例を聞き手が想像できるくらい詳しく描写するとさらに良くなります。表現面では、アイコンタクトの時間を増やし、声の大きさやスピードに緩急をつけると、聞き手を惹きつけるスピーチになります。`,
       ),
       overallComments: pad(
-        `今回の結果は 内容${input.matterScore}点・表現${input.mannerScore}点${input.pdLevel ? `、PD Level ${input.pdLevel}` : ""} でした。主張と理由の骨組みはできているので、次は具体例の描写とアイコンタクトを意識して練習しましょう。続ければ確実に上のレベルに届きます。`,
+        `今回の結果は 内容${input.matterScore}点・表現${input.mannerScore}点${input.pdLevel ? `、PD Level ${input.pdLevel}` : ""} でした。${input.nextLevel?.targetLevel ? `次の目標は ${input.nextLevel.targetLevel} です。` : "最上位レベルです。この調子で磨き続けましょう。"}主張と理由の骨組みを保ちながら、レポートの「次のレベルへのプラン」の項目を1つずつ練習しましょう。`,
       ),
     };
   }

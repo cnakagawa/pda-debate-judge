@@ -21,6 +21,8 @@ export interface PersistEvaluationInput {
   pdLevelGrid: PdLevelGrid;
   source: "ai" | "admin_edit";
   itemRationales: Record<string, string>;
+  /** スピーチシート構造抽出結果（学習支援表示用） */
+  structure?: unknown;
   llmModel?: string;
   promptVersion?: string;
   createdById?: string;
@@ -67,6 +69,7 @@ export async function persistEvaluation(
       pdLevel: score.pdLevel,
       cefrReference: score.cefrReference,
       gates: input.gates as unknown as Prisma.InputJsonValue,
+      structure: (input.structure ?? []) as Prisma.InputJsonValue,
       goodPoints: input.comments?.goodPoints ?? "",
       improvementPoints: input.comments?.improvementPoints ?? "",
       overallComments: input.comments?.overallComments ?? "",

@@ -19,6 +19,44 @@ interface ReportData {
   improvementPoints: string;
   overallComments: string;
   notes: string[];
+  learning: {
+    itemDetails: Array<{
+      key: string;
+      labelJa: string;
+      category: string;
+      grade: string;
+      rationale: string;
+      criteria: Array<{
+        band: string;
+        text: string;
+        met: boolean;
+        excluded: boolean;
+        rationale?: string;
+        evidence?: Array<{ quote: string; startSec?: number }>;
+      }>;
+    }>;
+    speechSheet: Array<{ key: string; labelJa: string; present: boolean; quote?: string }>;
+    nextLevel: {
+      currentLevel: string | null;
+      targetLevel: string | null;
+      requirements: { matter: number; manner: number } | null;
+      gaps: { matter: number; manner: number };
+      recommendations: Array<{
+        category: string;
+        itemLabelJa: string;
+        band: string;
+        text: string;
+        effect: string;
+      }>;
+    };
+    previous: {
+      testDate: string;
+      matterScore: number;
+      mannerScore: number;
+      totalScore: number;
+      pdLevel: string | null;
+    } | null;
+  };
 }
 
 export default function ReportPage(props: { params: Promise<{ id: string }> }) {
@@ -162,6 +200,137 @@ export default function ReportPage(props: { params: Promise<{ id: string }> }) {
           ))}
         </div>
       </div>
+
+      {/* ─────── 学習支援セクション ─────── */}
+
+      {data.learning.previous && (
+        <section className="mt-6 rounded-2xl bg-white p-6 shadow">
+          <h2 className="mb-3 text-lg font-bold text-[#1b2a5e]">前回からの変化</h2>
+          <div className="flex items-center gap-4 text-sm">
+            <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <p className="text-xs text-slate-500">前回 {data.learning.previous.testDate}</p>
+              <p className="font-bold">
+                {data.learning.previous.totalScore}/20（{data.learning.previous.pdLevel ?? "判定外"}）
+              </p>
+            </div>
+            <span className="text-2xl text-slate-400">→</span>
+            <div className="rounded-lg bg-amber-50 p-3 text-center">
+              <p className="text-xs text-slate-500">今回</p>
+              <p className="font-bold text-amber-700">
+                {data.totalScore}/20（{data.pdLevel ?? "判定外"}）
+              </p>
+            </div>
+            <p className="text-slate-600">
+              内容 {data.learning.previous.matterScore}→{data.matter.score} ／ 表現{" "}
+              {data.learning.previous.mannerScore}→{data.manner.score}
+            </p>
+          </div>
+        </section>
+      )}
+
+      <section className="mt-6 rounded-2xl bg-white p-6 shadow">
+        <h2 className="mb-1 text-lg font-bold text-[#1b2a5e]">
+          次のレベルへのプラン
+          {data.learning.nextLevel.targetLevel && (
+            <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-sm font-bold text-amber-700">
+              目標: {data.learning.nextLevel.targetLevel}
+            </span>
+          )}
+        </h2>
+        {data.learning.nextLevel.targetLevel ? (
+          <>
+            <p className="mb-3 text-sm text-slate-600">
+              {data.learning.nextLevel.targetLevel} に上がるには 内容{" "}
+              <b>{data.learning.nextLevel.requirements!.matter}点以上</b>・表現{" "}
+              <b>{data.learning.nextLevel.requirements!.manner}点以上</b> が必要です（あと 内容+
+              {data.learning.nextLevel.gaps.matter}点・表現+{data.learning.nextLevel.gaps.manner}点）。
+              以下はPDAルーブリックの中で、まだ満たせていない項目です。次の練習で意識しましょう。
+            </p>
+            <ul className="space-y-2">
+              {data.learning.nextLevel.recommendations.map((r, i) => (
+                <li key={i} className="rounded-lg border border-slate-200 p-3 text-sm">
+                  <span className={`mr-2 rounded px-1.5 py-0.5 text-xs font-bold ${r.category === "matter" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                    {r.category === "matter" ? "内容" : "表現"} / {r.itemLabelJa}・{r.band}
+                  </span>
+                  {r.text}
+                  <span className="mt-1 block text-xs text-slate-400">{r.effect}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p className="text-sm text-slate-600">
+            最上位レベル（PD1）に到達しています。この水準を維持できるよう練習を続けましょう。
+          </p>
+        )}
+      </section>
+
+      <section className="mt-6 rounded-2xl bg-white p-6 shadow">
+        <h2 className="mb-1 text-lg font-bold text-[#1b2a5e]">スピーチシート・チェック</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          この役割のスピーチに求められる構成要素が入っていたかのチェックです。
+        </p>
+        <ul className="space-y-2">
+          {data.learning.speechSheet.map((s) => (
+            <li key={s.key} className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-sm">
+              <span className={`mt-0.5 font-bold ${s.present ? "text-green-600" : "text-red-500"}`}>
+                {s.present ? "✓" : "✗"}
+              </span>
+              <div>
+                <p className="font-semibold">{s.labelJa}</p>
+                {s.present && s.quote ? (
+                  <p className="mt-1 border-l-2 border-slate-300 pl-2 text-xs italic text-slate-500">
+                    “{s.quote}”
+                  </p>
+                ) : !s.present ? (
+                  <p className="mt-1 text-xs text-red-500">スピーチの中で確認できませんでした。</p>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="mt-6 rounded-2xl bg-white p-6 shadow">
+        <h2 className="mb-1 text-lg font-bold text-[#1b2a5e]">評価の根拠を見る</h2>
+        <p className="mb-3 text-xs text-slate-500">
+          8つの評価項目それぞれについて、PDAルーブリックのどの基準を満たしたか／満たせなかったかを確認できます。
+        </p>
+        {data.learning.itemDetails.map((item) => (
+          <details key={item.key} className="mb-2 rounded-lg border border-slate-200">
+            <summary className="flex cursor-pointer items-center justify-between p-3">
+              <span className="text-sm font-semibold">
+                <span className={`mr-2 rounded px-1.5 py-0.5 text-xs font-bold ${item.category === "matter" ? "bg-blue-100 text-blue-700" : "bg-green-100 text-green-700"}`}>
+                  {item.category === "matter" ? "内容" : "表現"}
+                </span>
+                {item.labelJa}
+              </span>
+              <span className={`text-lg font-extrabold ${gradeColorClass(item.grade)}`}>{item.grade}</span>
+            </summary>
+            <div className="border-t border-slate-100 p-3">
+              {item.criteria
+                .filter((c) => !c.excluded)
+                .map((c, i) => (
+                  <div key={i} className="mb-2 rounded-lg bg-slate-50 p-2 text-xs">
+                    <p>
+                      <span className={`mr-1 font-bold ${c.met ? "text-green-600" : "text-red-500"}`}>
+                        {c.met ? "✓" : "✗"}
+                      </span>
+                      <span className="mr-1 rounded bg-slate-200 px-1 font-mono text-[10px]">{c.band}</span>
+                      {c.text}
+                    </p>
+                    {c.rationale && <p className="mt-1 pl-4 text-slate-500">{c.rationale}</p>}
+                    {c.evidence?.map((ev, j) => (
+                      <p key={j} className="mt-1 border-l-2 border-slate-300 pl-2 italic text-slate-500">
+                        “{ev.quote}”
+                      </p>
+                    ))}
+                  </div>
+                ))}
+            </div>
+          </details>
+        ))}
+      </section>
     </main>
   );
 }

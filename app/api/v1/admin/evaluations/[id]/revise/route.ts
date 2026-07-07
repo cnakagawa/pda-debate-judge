@@ -91,6 +91,7 @@ export const POST = handler(
       pdLevelGrid: pdGrid,
       source: "admin_edit",
       itemRationales,
+      structure: evaluation.structure,
       llmModel: evaluation.llmModel ?? undefined,
       promptVersion: evaluation.promptVersion ?? undefined,
       createdById: admin.id,
