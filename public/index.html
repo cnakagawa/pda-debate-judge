@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Debate Judge Bot — POI-aware auto adjudicator</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🎙️ Debate Judge Bot <span class="tag">POI-aware</span></div>
+    <div id="llmBadge" class="llm-badge" title="AI enhancement status">…</div>
+  </header>
+
+  <!-- Wizard steps -->
+  <nav class="stepper" id="stepper">
+    <button class="step active" data-step="1"><span>1</span> Paste transcript<small>Transcriptを貼る</small></button>
+    <button class="step" data-step="2"><span>2</span> Confirm speakers<small>発話者を確認</small></button>
+    <button class="step" data-step="3"><span>3</span> Check & fix POIs<small>POIを確認・修正</small></button>
+    <button class="step" data-step="4"><span>4</span> Judge result<small>ジャッジ結果</small></button>
+  </nav>
+
+  <main>
+    <!-- STEP 1 -------------------------------------------------------------->
+    <section class="panel" data-panel="1">
+      <h2>1 · Paste, upload, or type your Zoom transcript</h2>
+      <p class="hint">Zoomの文字起こし（VTT／テキスト）を貼り付け・アップロード・入力できます。発話者名が「Participant」でも動きます。</p>
+
+      <div class="config-row">
+        <label>Government / 肯定側 <input id="govName" value="Government" /></label>
+        <label>Opposition / 否定側 <input id="oppName" value="Opposition" /></label>
+        <label>Speakers per side <input id="perSide" type="number" min="1" max="4" value="3" /></label>
+        <label class="check"><input id="useLlm" type="checkbox" checked /> Use AI enhancement (if configured)</label>
+      </div>
+
+      <div class="toolbar">
+        <label class="btn file-btn">📁 Upload file
+          <input id="fileInput" type="file" accept=".txt,.vtt,.srt" hidden />
+        </label>
+        <select id="sampleSelect" class="btn"><option value="">📄 Load a sample…</option></select>
+        <button id="clearBtn" class="btn ghost">Clear</button>
+      </div>
+
+      <textarea id="transcript" rows="16" placeholder="Speaker 1: The motion today is that we should ban single-use plastics...&#10;Speaker 2: Point of information.&#10;Speaker 1: Accepted.&#10;Speaker 2: Isn't it true that a ban would hurt low-income families?&#10;Speaker 1: No, because we provide subsidised alternatives..."></textarea>
+
+      <div class="actions">
+        <button id="parseBtn" class="btn primary">Parse transcript → <b>解析する</b></button>
+        <span id="parseStatus" class="status"></span>
+      </div>
+    </section>
+
+    <!-- STEP 2 -------------------------------------------------------------->
+    <section class="panel hidden" data-panel="2">
+      <h2>2 · Confirm the speakers <span class="sub">発話者を確認する</span></h2>
+      <p class="hint">AIが推定した発話者と所属チームです。<b class="review-pill">要確認</b> のものは信頼度が低いので、必ず確認・修正してください。</p>
+      <div id="speakerStats" class="statline"></div>
+      <div class="table-wrap">
+        <table id="speakerTable">
+          <thead><tr><th>Label (from Zoom)</th><th>Role</th><th>Team</th><th>Confidence</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" data-goto="1">← Back</button>
+        <button id="saveSpeakersBtn" class="btn primary">Save speakers → next</button>
+        <span id="speakerStatus" class="status"></span>
+      </div>
+    </section>
+
+    <!-- STEP 3 -------------------------------------------------------------->
+    <section class="panel hidden" data-panel="3">
+      <h2>3 · Check & fix the POIs <span class="sub">POIを確認・修正する</span></h2>
+      <p class="hint">各POIを「イベント」として整理しました。requester / target / question / response / status を直接編集できます。<b class="review-pill">要確認</b> は自動検出の信頼度が低い項目です。</p>
+      <div id="poiStats" class="statline"></div>
+      <div class="table-wrap">
+        <table id="poiTable">
+          <thead><tr>
+            <th>#</th><th>Requester</th><th>Target</th><th>Question</th><th>Response</th>
+            <th>Status</th><th>Conf.</th><th>Review</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn ghost" data-goto="2">← Back</button>
+        <button id="addPoiBtn" class="btn ghost">+ Add POI manually</button>
+        <button id="savePoisBtn" class="btn">💾 Save edits</button>
+        <button id="judgeBtn" class="btn primary">Re-evaluate & Judge → <b>ジャッジ結果を出す</b></button>
+        <span id="poiStatus" class="status"></span>
+      </div>
+    </section>
+
+    <!-- STEP 4 -------------------------------------------------------------->
+    <section class="panel hidden" data-panel="4">
+      <h2>4 · Judge result <span class="sub">ジャッジ結果</span></h2>
+      <div id="result"></div>
+      <div class="actions">
+        <button class="btn ghost" data-goto="3">← Back to POIs</button>
+        <button id="reJudgeBtn" class="btn">↻ Re-judge</button>
+        <button id="exportBtn" class="btn ghost">⬇ Export JSON</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>
