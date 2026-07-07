@@ -59,7 +59,8 @@ REST（`/api/v1`）+ SSE（進捗配信）。認証はセッションCookie（Ht
   "matter": { "score": 6, "grade": "A" },
   "manner": { "score": 5, "grade": "B" },
   "totalScore": 11,
-  "pdLevel": "Level 3",
+  "pdLevel": "PD4",              // 内容×表現マトリクスで判定（判定外の場合は null）
+  "cefrReference": "A2〜B1",     // 参考表示（設定でON/OFF）
   "items": [
     { "key": "reasoning",  "label": "主張の理由", "category": "matter", "grade": "A" },
     { "key": "example",    "label": "具体例",     "category": "matter", "grade": "A" },
