@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pda
+      POSTGRES_PASSWORD: pda
+      POSTGRES_DB: pd_assessment
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pda"]
+      interval: 5s
+      retries: 10
+
+  web:
+    build: .
+    command: sh -c "npx prisma migrate deploy && npm run db:seed && npm start"
+    environment: &appenv
+      DATABASE_URL: postgresql://pda:pda@db:5432/pd_assessment
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-to-a-random-32char-secret!!}
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /data/storage
+      AI_DRIVER: ${AI_DRIVER:-mock}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CHROMIUM_PATH: /usr/bin/chromium
+    volumes:
+      - storage:/data/storage
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: npm run worker
+    environment: *appenv
+    volumes:
+      - storage:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+volumes:
+  dbdata:
+  storage:

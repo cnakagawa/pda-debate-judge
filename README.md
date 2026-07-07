@@ -1,159 +1,104 @@
-# 🎙️ Debate Judge Bot — POI-aware auto adjudicator
+# PD Assessment System（PD検定アセスメント版）
 
-Zoomで実施する **英語即興型ディベート** の自動ジャッジシステムです。
-Zoomの文字起こしから、発話者ごとのスピーチ・**POI（Point of Information）**・POIへの応答を
-自動で整理し、ジャッジコメントと評価点を出します。
+一般社団法人パーラメンタリーディベート人財育成協会（PDA）の公式AIアセスメントシステムです。
+受験者がWebブラウザでディベートスピーチ（PM / LO）を録画し、**PDA公式ルーブリックに厳密準拠したAI採点**を受けて
+**PD Assessment Report**（画面 + PDF）を取得できます。
 
-このバージョンの最大の改善点は、**POIを「単なる発話」ではなく構造化された「イベント（POIEvent）」として扱う**ことです。
-Zoomの文字起こしは「誰が質問したか／誰が答えたか」が曖昧なため、
-**AIが下書き → 人間が確認・修正 → 再評価** という流れを前提に設計しています。
+> 本システムは学習用アセスメントであり、公式PD検定の合否・級を証明するものではありません。
 
----
+## 主な機能
 
-## ✨ 主な機能
+- **PM Assessment** — 論題表示 → 準備5分 → スピーチ3分録画 → AI採点 → レポート
+- **LO Assessment** — 準備5分 → AI生成のPMスピーチを音声再生 → 反論スピーチ3分録画 → AI採点 → レポート
+- **ルーブリック厳密採点** — AIは詳細項目の充足判定（true/false + 根拠引用）のみを行い、
+  点数計算はExcelルーブリックの規則を実装した決定的コード（RubricEngine）が行う
+- **PD Level 換算** — PDA提供の内容×表現マトリクス（PD1〜PD6）+ CEFR参考表示
+- **録画の自動削除** — 録画→文字起こし→採点→削除（管理者設定で保存ONに切替可能）
+- **管理者画面** — 論題管理 / Assessment履歴 / AI評価確認 / 評価修正（詳細項目単位・自動再計算・修正履歴）/
+  録画保存設定 / PDF再発行 / AI再採点
 
-| # | 機能 | 説明 |
-|---|------|------|
-| 1 | **入力** | Zoom transcript を貼り付け・アップロード（`.txt` / `.vtt` / `.srt`）・直接入力 |
-| 2 | **発話分類** | Constructive speech / Reply speech / POI request / POI question / POI response / Chair・Moderator / Noise |
-| 3 | **POIをイベント化** | 求めた人・受けた人・質問・回答・status(accepted/declined/ignored/unclear)・質を記録 |
-| 4 | **発話者推定** | 発話者が不明でもAIが推定し **confidence score** を表示 |
-| 5 | **要確認フラグ** | 信頼度が低い項目は「要確認」と表示し、手動修正できる |
-| 6 | **集計** | チーム・スピーカーごとにPOI評価を集計 |
-| 7 | **最終出力** | 勝敗 / 各スピーカー評価 / 各チーム評価 / POI評価 / 改善コメント / 教育的フィードバック |
+## セットアップ
 
-### POIEvent の構造
+### 必要なもの
 
-```jsonc
-{
-  "requester": "Opposition 1",       // POIを求めた人（不明なら null）
-  "target_speaker": "Government 1",  // POIを受けた人
-  "question_text": "Isn't it true that a ban would hit low-income families hardest?",
-  "response_text": "No, because our subsidy scheme caps the price...",
-  "status": "accepted",              // accepted | declined | ignored | unclear
-  "requester_team": "Opposition",
-  "target_team": "Government",
-  "confidence": 0.8,                 // 自動検出の信頼度
-  "needs_manual_review": false,      // 要確認フラグ
-  "evaluation": {
-    "relevance": 4.2,                // 論点に関係しているか
-    "challenge_strength": 3.8,       // 相手の弱点を突いているか
-    "strategic_value": 4.0,          // 勝敗に関わる重要な点か
-    "clarity": 4.5,                  // 短く明確か
-    "response_quality": 3.5,         // 回答が質問に直接答えているか（未回答なら null）
-    "comment": "On-topic and engages the speech directly. ..."
-  }
-}
-```
+- Node.js 20+ / PostgreSQL 16 / ffmpeg / Chromium（PDF生成用）
+- （本番）Anthropic APIキー・OpenAI APIキー
 
----
-
-## 🧭 使い方（4ステップ）
-
-画面上部のステップに沿って操作します。初心者でも迷いません。
-
-1. **Transcriptを貼る** — テキストを貼り付け or ファイルをアップロード。
-   チーム名・1チームの人数を設定して「解析する」。
-2. **発話者を確認する** — AIが推定した発話者とチームを確認。
-   `要確認` のものは信頼度が低いので Role / Team を修正して保存。
-3. **POIを確認・修正する** — POI一覧を表で確認。
-   requester / target / question / response / status を直接編集。
-   POIを手動追加・削除も可能。「Save edits」で保存。
-4. **ジャッジ結果を出す** — 「Re-evaluate & Judge」で再評価。
-   勝敗・各評価・POI評価・改善コメント・教育的フィードバックを表示。JSONエクスポートも可能。
-
-> 💡 **設計思想**：Zoom transcriptだけでは発話者識別が完全ではありません。
-> このツールは *完璧な自動化* ではなく、**AIの下書きを人間が確認・修正して再評価する**流れを重視しています。
-
----
-
-## 🚀 セットアップ
-
-### Replit で動かす
-
-1. このリポジトリを Replit に import。
-2. **Run** を押すだけ（`npm install && npm start` が自動実行されます）。
-3. Webview で開いた画面で操作します。
-
-### ローカルで動かす
+### 手順
 
 ```bash
 npm install
-npm start          # http://localhost:3000
-npm test           # POI検出ロジックのテスト
+cp .env.example .env        # DATABASE_URL, SESSION_SECRET 等を設定
+npx prisma migrate deploy   # スキーマ適用
+npm run db:seed             # ルーブリック・役割定義・初期論題・管理者アカウント投入
+npm run dev                 # Web (http://localhost:3000)
+npm run worker              # 採点ワーカー（別プロセス・必須）
 ```
 
-### AI強化モード（任意）
+Docker の場合:
 
-APIキーが無くても **ルールベースで完全に動作** します（オフラインでもOK）。
-より高精度な発話者推定・POI抽出・ジャッジコメントが欲しい場合は、
-Claude API キーを設定してください。
+```bash
+docker compose up --build   # db + web + worker
+```
 
-- Replit の **Secrets** に以下を追加：
-  - `ANTHROPIC_API_KEY` … あなたのAnthropic APIキー
-  - `CLAUDE_MODEL`（任意）… 既定は `claude-sonnet-5`
-- 設定されると画面右上のバッジが **AI: on** になり、
-  解析・ジャッジ時にAIが下書きを高精度化します（失敗時は自動でルールベースに戻ります）。
+### AIドライバ
 
----
+| `AI_DRIVER` | 動作 |
+|---|---|
+| `mock`（既定） | APIキー不要。決定的なモック判定で全フローを動作確認できる（**開発・デモ専用**） |
+| `real` | STT=OpenAI Whisper、判定・生成・映像解析=Anthropic Claude。`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` が必要 |
 
-## 🧪 サンプル transcript
+初期管理者は `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`（既定: `admin@example.com` / `change-me-admin`）。
+**本番投入前に必ず変更してください。**
 
-`samples/` に3種類の動作確認用データを同梱しています（画面から「Load a sample…」で読み込み可）。
+## テスト
 
-| ファイル | 種類 |
-|----------|------|
-| `1_named_speakers.txt` | 発話者名つき（Government 1 など）— きれいなケース |
-| `2_partial_participant.txt` | 発話者名が全て `Participant`（不完全）— 要確認多数 |
-| `3_noisy_zoom_vtt.txt` | ノイズ入り WebVTT（タイムスタンプ・背景音・chair発言） |
+```bash
+npm test          # RubricEngine・PD Levelマトリクス・計測判定の単体テスト（全帯域網羅）
+npm run typecheck
+```
 
----
+## アーキテクチャ
 
-## 🏗️ 構成
+設計書一式は [docs/design/](docs/design/README.md) を参照してください
+（アーキテクチャ / DB設計 / 画面遷移 / 採点ロジック / API / 技術スタック / ロードマップ / MVPスコープ）。
 
 ```
-server.js            Express サーバ（API + 静的UI配信）
+app/                # Next.js 15 App Router（受験UI・管理UI・API Routes）
 src/
-  parser.js          transcript → utterances / speakers / POIEvents（コア）
-  evaluate.js        POI評価 + 最終ジャッジ（ルールベース）
-  llm.js             Claude連携（任意・失敗時はフォールバック）
-  store.js           セッション & POIEvent の保存・編集（ファイル永続化）
-public/              フロントエンド（4ステップ ウィザードUI）
-samples/             サンプル transcript
-test/parser.test.js  POI検出のテスト（node --test）
+  domain/           # ルーブリック定義・RubricEngine・PD Levelマトリクス・役割定義（外部依存ゼロ）
+  ports/            # STT / TTS / Judge / Vision / Storage / PDF のインターフェース
+  adapters/         # Claude / OpenAI / Mock / S3・ローカル / ffmpeg / Playwright PDF
+  pipeline/         # 採点パイプライン（pg-boss ジョブ）
+  services/         # 評価保存・レポート発行・受験進行・PMスピーチ生成
+worker/             # 採点ワーカーのエントリポイント
+prisma/             # スキーマ・マイグレーション・シード
+tests/              # 単体テスト（ゴールデン回帰の起点）
+docs/design/        # 設計書
+legacy/             # 旧Zoom POIジャッジ試作（第2フェーズで参照）
 ```
 
-### API 概要
+### 採点の流れ
 
-| メソッド | パス | 用途 |
-|----------|------|------|
-| `POST` | `/api/parse` | transcriptを解析してセッション作成 |
-| `GET`  | `/api/session/:id` | セッション取得 |
-| `PUT`  | `/api/session/:id/speakers` | 発話者の修正を保存 |
-| `PUT`  | `/api/session/:id/pois` | POIEvent一覧の修正を保存 |
-| `PATCH`| `/api/session/:id/pois/:poiId` | POIを1件更新 |
-| `POST` | `/api/session/:id/judge` | 再評価してジャッジ結果を返す |
+```
+録画アップロード
+→ ffmpegで音声抽出・フレーム抽出（0.5fps）
+→ 文字起こし（単語タイムスタンプ）
+→ 計測（スピーチ時間・沈黙率・話速・音量）      ← タイムマネジメント等は決定的判定
+→ 映像解析（カメラ目線率・姿勢・ジェスチャー）   ← 削除前に必ず実施
+→ LLM判定（ルーブリック詳細項目ごとの充足 + 根拠引用）
+→ RubricEngine が点数・S/A/B/C・PD Level を計算
+→ コメント生成（Good/Improvement/Overall 各150〜200字）
+→ PD Assessment Report (PDF) 発行
+→ 録画・音声を削除（設定が「保存ON」の場合は保持）
+```
 
----
+## 将来拡張（設計済み）
 
-## 📐 POIの評価観点
+- Zoom / Teams / Meet 連携（`MediaSourcePort` に入口を追加）
+- MG / MO / LOR / PMR（役割定義・Reply用ルーブリック差分は実装済み。有効化のみ）
+- 日本語ディベート（`language` 属性が全域を伝播済み）
 
-各POIを以下の観点で 0〜5 点評価します。
+## ライセンス
 
-- **relevance** — 論点に関係しているか
-- **challenge_strength** — 相手の議論の弱点を突いているか
-- **strategic_value** — 試合の勝敗に関わる重要な点か
-- **clarity** — 短く明確か
-- **response_quality** — 回答者が質問に直接答え、自分の議論を守れているか（未回答なら該当なし）
-
-チーム／スピーカーごとに、POIを **出した数・受けた数・答えた数・平均質** を集計し、
-最終スコアに反映します（スピーチ評価を主、POIを勝敗を分けるマージンとして扱います）。
-
----
-
-## ⚠️ 注意
-
-- Zoomの文字起こしは発話者識別が不完全です。**必ずステップ2・3で人間が確認・修正**してください。
-- 単一ラベル（全員 `Participant`）の場合、AIは位置から下書きしますが信頼度は低く、
-  すべて「要確認」になります。修正後に再評価すると結果が変わります。
-- ルールベースの点数は透明性重視の概算です。AIモードを有効にすると、より内容に踏み込んだ評価になります。
+MIT（PDA向けに開発）

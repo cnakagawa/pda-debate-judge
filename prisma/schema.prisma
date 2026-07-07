@@ -1,0 +1,336 @@
+// PD Assessment System — database schema (see docs/design/02-database.md)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  examinee
+  admin
+}
+
+enum DebateRole {
+  PM
+  LO
+  MG
+  MO
+  LOR
+  PMR
+}
+
+enum DebateSide {
+  government
+  opposition
+}
+
+enum SpeechType {
+  constructive
+  reply
+}
+
+enum AssessmentStatus {
+  created
+  preparing
+  listening
+  recording
+  uploaded
+  processing
+  scored
+  failed
+  abandoned
+}
+
+enum AssessmentSource {
+  web
+  zoom
+  teams
+  meet
+}
+
+enum Language {
+  en
+  ja
+}
+
+enum MediaKind {
+  video
+  audio_extracted
+  tts_audio
+}
+
+enum MediaRetention {
+  delete_after_scoring
+  keep
+}
+
+enum EvaluationSource {
+  ai
+  admin_edit
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(examinee)
+  uiLanguage   Language @default(ja) @map("ui_language")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  assessments Assessment[]
+  motions     Motion[]
+  evaluations Evaluation[]
+  revisions   EvaluationRevision[]
+  reports     Report[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model Motion {
+  id          String       @id @default(uuid()) @db.Uuid
+  textEn      String       @map("text_en")
+  textJa      String?      @map("text_ja")
+  category    String?
+  difficulty  Int?
+  targetRoles DebateRole[] @map("target_roles")
+  isActive    Boolean      @default(true) @map("is_active")
+  createdById String?      @map("created_by") @db.Uuid
+  createdBy   User?        @relation(fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  assessments Assessment[]
+
+  @@map("motions")
+}
+
+model RoleSpecRecord {
+  id               String     @id @default(uuid()) @db.Uuid
+  role             DebateRole @unique
+  side             DebateSide
+  speechType       SpeechType @map("speech_type")
+  labelJa          String     @map("label_ja")
+  timeLimits       Json       @map("time_limits")
+  requiredElements Json       @map("required_elements")
+  inputs           Json
+  isEnabled        Boolean    @default(false) @map("is_enabled")
+
+  @@map("role_specs")
+}
+
+model Assessment {
+  id                 String           @id @default(uuid()) @db.Uuid
+  userId             String           @map("user_id") @db.Uuid
+  user               User             @relation(fields: [userId], references: [id])
+  role               DebateRole
+  motionId           String           @map("motion_id") @db.Uuid
+  motion             Motion           @relation(fields: [motionId], references: [id])
+  language           Language         @default(en)
+  status             AssessmentStatus @default(created)
+  statusDetail       Json             @default("{}") @map("status_detail")
+  source             AssessmentSource @default(web)
+  settingsSnapshot   Json             @default("{}") @map("settings_snapshot")
+  prepStartedAt      DateTime?        @map("prep_started_at")
+  recordingStartedAt DateTime?        @map("recording_started_at")
+  recordingEndedAt   DateTime?        @map("recording_ended_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  completedAt        DateTime?        @map("completed_at")
+
+  generatedSpeeches GeneratedSpeech[]
+  mediaFiles        MediaFile[]
+  transcript        Transcript?
+  deliveryMetrics   DeliveryMetricsRecord?
+  evaluations       Evaluation[]
+  reports           Report[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("assessments")
+}
+
+model GeneratedSpeech {
+  id              String     @id @default(uuid()) @db.Uuid
+  assessmentId    String     @map("assessment_id") @db.Uuid
+  assessment      Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  role            DebateRole
+  script          String
+  structure       Json       @default("{}")
+  llmModel        String     @map("llm_model")
+  promptVersion   String     @map("prompt_version")
+  audioStorageKey String?    @map("audio_storage_key")
+  durationSec     Float?     @map("duration_sec")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  @@unique([assessmentId, role])
+  @@map("generated_speeches")
+}
+
+model MediaFile {
+  id           String         @id @default(uuid()) @db.Uuid
+  assessmentId String         @map("assessment_id") @db.Uuid
+  assessment   Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  kind         MediaKind
+  storageKey   String         @map("storage_key")
+  sizeBytes    BigInt?        @map("size_bytes")
+  mimeType     String?        @map("mime_type")
+  durationSec  Float?         @map("duration_sec")
+  retention    MediaRetention @default(delete_after_scoring)
+  deletedAt    DateTime?      @map("deleted_at")
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@index([assessmentId])
+  @@map("media_files")
+}
+
+model Transcript {
+  id           String     @id @default(uuid()) @db.Uuid
+  assessmentId String     @unique @map("assessment_id") @db.Uuid
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  text         String
+  words        Json       @default("[]")
+  sttProvider  String     @map("stt_provider")
+  sttModel     String     @map("stt_model")
+  language     String
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@map("transcripts")
+}
+
+model DeliveryMetricsRecord {
+  id                String     @id @default(uuid()) @db.Uuid
+  assessmentId      String     @unique @map("assessment_id") @db.Uuid
+  assessment        Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  speechDurationSec Float      @map("speech_duration_sec")
+  silenceRatio      Float      @map("silence_ratio")
+  longestSilenceSec Float      @map("longest_silence_sec")
+  wordsPerMinute    Float      @map("words_per_minute")
+  loudnessStats     Json       @default("{}") @map("loudness_stats")
+  pitchStats        Json       @default("{}") @map("pitch_stats")
+  eyeContactRatio   Float?     @map("eye_contact_ratio")
+  frameFindings     Json       @default("[]") @map("frame_findings")
+  framesAnalyzed    Int        @default(0) @map("frames_analyzed")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  @@map("delivery_metrics")
+}
+
+model RubricVersion {
+  id                 String   @id @default(uuid()) @db.Uuid
+  version            String   @unique
+  definition         Json
+  judgePromptVersion String   @map("judge_prompt_version")
+  isActive           Boolean  @default(false) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  evaluations Evaluation[]
+
+  @@map("rubric_versions")
+}
+
+model Evaluation {
+  id                String           @id @default(uuid()) @db.Uuid
+  assessmentId      String           @map("assessment_id") @db.Uuid
+  assessment        Assessment       @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  rubricVersionId   String           @map("rubric_version_id") @db.Uuid
+  rubricVersion     RubricVersion    @relation(fields: [rubricVersionId], references: [id])
+  source            EvaluationSource
+  supersedesId      String?          @unique @map("supersedes_id") @db.Uuid
+  supersedes        Evaluation?      @relation("EvaluationGenerations", fields: [supersedesId], references: [id])
+  supersededBy      Evaluation?      @relation("EvaluationGenerations")
+  isCurrent         Boolean          @default(true) @map("is_current")
+  matterScore       Int              @map("matter_score")
+  mannerScore       Int              @map("manner_score")
+  totalScore        Int              @map("total_score")
+  matterGrade       String           @map("matter_grade")
+  mannerGrade       String           @map("manner_grade")
+  pdLevel           String?          @map("pd_level")
+  cefrReference     String?          @map("cefr_reference")
+  goodPoints        String           @default("") @map("good_points")
+  improvementPoints String           @default("") @map("improvement_points")
+  overallComments   String           @default("") @map("overall_comments")
+  gates             Json             @default("[]")
+  llmModel          String?          @map("llm_model")
+  promptVersion     String?          @map("prompt_version")
+  createdById       String?          @map("created_by") @db.Uuid
+  createdBy         User?            @relation(fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  items     EvaluationItem[]
+  revisions EvaluationRevision[]
+  reports   Report[]
+
+  @@index([assessmentId, isCurrent])
+  @@map("evaluations")
+}
+
+model EvaluationItem {
+  id              String     @id @default(uuid()) @db.Uuid
+  evaluationId    String     @map("evaluation_id") @db.Uuid
+  evaluation      Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  category        String
+  itemKey         String     @map("item_key")
+  grade           String
+  criteriaResults Json       @map("criteria_results")
+  rationale       String     @default("")
+
+  @@unique([evaluationId, itemKey])
+  @@map("evaluation_items")
+}
+
+model EvaluationRevision {
+  id           String     @id @default(uuid()) @db.Uuid
+  evaluationId String     @map("evaluation_id") @db.Uuid
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  editorId     String     @map("editor_id") @db.Uuid
+  editor       User       @relation(fields: [editorId], references: [id])
+  diff         Json
+  reason       String
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@map("evaluation_revisions")
+}
+
+model Report {
+  id           String     @id @default(uuid()) @db.Uuid
+  assessmentId String     @map("assessment_id") @db.Uuid
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  evaluationId String     @map("evaluation_id") @db.Uuid
+  evaluation   Evaluation @relation(fields: [evaluationId], references: [id])
+  storageKey   String     @map("storage_key")
+  issuedAt     DateTime   @default(now()) @map("issued_at")
+  issuedById   String?    @map("issued_by") @db.Uuid
+  issuedBy     User?      @relation(fields: [issuedById], references: [id])
+
+  @@index([assessmentId])
+  @@map("reports")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  actorId    String?  @map("actor_id") @db.Uuid
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id")
+  payload    Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
