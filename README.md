@@ -63,9 +63,35 @@ docker compose up --build   # db + web + worker
 ## テスト
 
 ```bash
-npm test          # RubricEngine・PD Levelマトリクス・計測判定の単体テスト（全帯域網羅）
+npm test          # RubricEngine・PD Levelマトリクス・NextLevelPlan・計測判定の単体テスト（全帯域網羅）
 npm run typecheck
 ```
+
+## 採点精度の較正と回帰（本番運用の必須プロセス）
+
+動画・STTを介さず、文字起こしテキストから本番と同一の判定・採点を実行できます。
+
+```bash
+# ① 較正: サンプルスピーチ（calibration/*.json）で採点の妥当性を確認
+AI_DRIVER=real ANTHROPIC_API_KEY=sk-... npm run calibrate
+npm run calibrate -- --case=pm-strong --details   # 1ケースの詳細項目判定を表示
+
+# ② ゴールデン回帰: 人間ジャッジ済みサンプル（golden/*.json）との一致率を計測
+AI_DRIVER=real ANTHROPIC_API_KEY=sk-... npm run golden
+```
+
+- 較正ケースは強/中/弱のPMスピーチ + LOスピーチの4本を同梱。期待レンジ逸脱で終了コード1。
+- ゴールデンセットの登録方法は [golden/README.md](golden/README.md) を参照
+  （項目グレード一致率・カテゴリ点±1以内率・PDレベル一致率を計測。CIでは
+  `GOLDEN_MIN_ITEM_AGREEMENT` / `GOLDEN_MIN_SCORE_NEAR` でしきい値を強制）。
+- **判定プロンプト（src/ai/prompts.ts）を変更したら必ず `JUDGE_PROMPT_VERSION` を上げ、
+  較正とゴールデン回帰を再実行**してからデプロイしてください。
+
+## 論題の一括投入
+
+管理者画面「論題管理 → 一括投入」に1行1論題で貼り付けるだけで登録できます
+（`論題 | カテゴリ` 形式でカテゴリ指定可、重複は自動スキップ）。
+API: `POST /api/v1/admin/motions/bulk`。
 
 ## アーキテクチャ
 

@@ -1,0 +1,10 @@
+{
+  "id": "pm-basic",
+  "role": "PM",
+  "motion": "We should ban smartphones in elementary schools.",
+  "language": "en",
+  "note": "B帯想定の基本的なPMスピーチ。1段階の理由づけとキーワード程度の例のみ。比較・重要性・詳しい説明はない。",
+  "expected": { "matterMin": 3, "matterMax": 6, "mannerMin": 3, "mannerMax": 8 },
+  "metrics": { "speechDurationSec": 120, "silenceRatio": 0.18, "eyeContactRatio": 0.3 },
+  "transcript": "Hello everyone. Today's motion is we should ban smartphones in elementary schools. We agree with this motion. We have two points. First point is about study. If children have smartphones in school, they will play games and they cannot study well. For example, games and YouTube. So smartphones are bad for study. Second point is about bullying. Children can send bad messages with smartphones. For example, SNS bullying. So smartphones are dangerous for children. Also, smartphones are expensive and children may lose them at school. That is a problem for parents. So, because smartphones are bad for study and dangerous for children, we should ban smartphones in elementary schools. Thank you very much."
+}

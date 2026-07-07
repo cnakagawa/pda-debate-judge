@@ -13,7 +13,9 @@
     "test:watch": "vitest",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "calibrate": "tsx scripts/calibrate.ts",
+    "golden": "tsx scripts/golden.ts"
   },
   "engines": {
     "node": ">=20"

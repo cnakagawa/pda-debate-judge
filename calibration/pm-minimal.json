@@ -1,0 +1,10 @@
+{
+  "id": "pm-minimal",
+  "role": "PM",
+  "motion": "We should ban smartphones in elementary schools.",
+  "language": "en",
+  "note": "低得点ゲート（2点: 論点の提示にとどまる）想定。挨拶・論題・サインポストのみで説明がない。",
+  "expected": { "matterMin": 1, "matterMax": 3, "mannerMin": 0, "mannerMax": 5 },
+  "metrics": { "speechDurationSec": 35, "silenceRatio": 0.5, "eyeContactRatio": 0.2 },
+  "transcript": "Hello everyone. Today's motion is we should ban smartphones in elementary schools. We have two points. Point one is study. Point two is safety. Thank you."
+}

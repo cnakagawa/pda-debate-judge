@@ -1,0 +1,28 @@
+{
+  "id": "case-001",
+  "role": "PM",
+  "motion": "We should ban smartphones in elementary schools.",
+  "language": "en",
+  "transcript": "（スピーチの文字起こし全文をここに）",
+  "metrics": {
+    "speechDurationSec": 170,
+    "silenceRatio": 0.05,
+    "eyeContactRatio": 0.6
+  },
+  "human": {
+    "matterScore": 6,
+    "mannerScore": 5,
+    "itemGrades": {
+      "reasoning": "A",
+      "example": "A",
+      "relevancy": "A",
+      "role_strategy": "A",
+      "attitude": "B",
+      "eye_contact_gesture": "B",
+      "clarity": "B",
+      "time_management": "A"
+    },
+    "judge": "（ジャッジ名）",
+    "judgedAt": "2026-07-01"
+  }
+}

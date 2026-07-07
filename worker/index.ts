@@ -1,3 +1,7 @@
+try {
+  process.loadEnvFile(".env"); // 単体実行時に .env を読み込む（存在しなければ無視）
+} catch {}
+
 import { PrismaClient } from "@prisma/client";
 import { getBoss, QUEUE_GENERATE_PM, QUEUE_SCORE } from "../src/pipeline/queue";
 import { runScoringPipeline } from "../src/pipeline/scoring";
