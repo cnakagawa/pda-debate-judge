@@ -51,7 +51,6 @@ export class ClaudeVisionAdapter implements VisionPort {
       const res = await this.client.messages.create({
         model: this.model,
         max_tokens: 4096,
-        temperature: 0,
         tools: [tool as Anthropic.Tool],
         tool_choice: { type: "tool", name: tool.name },
         messages: [{ role: "user", content }],

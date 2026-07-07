@@ -6,7 +6,7 @@ import { isCriterionExcluded } from "../domain/rubricEngine";
  * 判定プロンプトのバージョン。文言を変更したら必ず上げること。
  * 評価レコードに記録され、どのプロンプトで採点されたかを追跡できる。
  */
-export const JUDGE_PROMPT_VERSION = "judge-v1";
+export const JUDGE_PROMPT_VERSION = "judge-v2";
 export const PM_SPEECH_PROMPT_VERSION = "pm-speech-v1";
 export const COMMENTS_PROMPT_VERSION = "comments-v2";
 
@@ -60,7 +60,11 @@ export function buildJudgePrompt(input: JudgeInput): string {
 1. 判定は下記「PDAルーブリック詳細項目（原文）」のみに基づいて行うこと。あなた独自の採点基準・一般的なディベート評価基準を使うことは禁止。
 2. 各詳細項目について met（充足）を true/false で判定し、必ず判定根拠 rationale と、スピーチからの引用 evidence を付けること。
 3. 判定に確信が持てない場合は met=false とし、confidence を低く（0.6未満に）設定すること。
-4. 点数の計算はあなたの仕事ではない（システムが別途行う）。項目の充足判定だけを行うこと。
+4. 特にS帯の詳細項目（7点以上に相当する「特に評価できる」水準）は厳格に判定すること：
+   スピーチからの明確な引用によって基準の文言どおりに裏付けられる場合のみ met=true とする。
+   解釈次第で判断が割れうる場合・裏付けが間接的な場合（confidence 0.7未満相当）は必ず met=false とすること。
+   S帯は「B・Aを満たした上でさらに特筆すべき水準」であり、平均的な達成では充足しない。
+5. 点数の計算はあなたの仕事ではない（システムが別途行う）。項目の充足判定だけを行うこと。
 
 # 受験情報
 - 役割: ${roleSpec.role}（${roleSpec.labelJa}）

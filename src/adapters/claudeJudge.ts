@@ -83,10 +83,10 @@ export class ClaudeJudgeAdapter implements JudgePort {
   ): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
+      // temperature等のサンプリングパラメータはClaude Sonnet 5以降で廃止のため送らない
       const res = await this.client.messages.create({
         model: this.model,
         max_tokens: maxTokens,
-        temperature: 0,
         tools: [tool as Anthropic.Tool],
         tool_choice: { type: "tool", name: tool.name },
         messages: [{ role: "user", content: prompt }],
